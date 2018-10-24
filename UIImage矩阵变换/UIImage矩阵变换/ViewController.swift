@@ -14,7 +14,7 @@ class ViewController: UIViewController {
         super.viewDidLoad()
         let image = UIImage(named: "test")!
         
-        imageVIew.image = image.test()
+        imageVIew.image = image.test2()
 //        imageVIew.image = image.FlipVertical() //垂直翻转
 //        imageVIew.image = image.flHpHorizontal() //水平翻转
     }

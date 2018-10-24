@@ -112,4 +112,96 @@ extension UIImage {
         return resultImage
 
     }
+    
+    func test2() -> UIImage? {
+        //需要 width*self.scale，因为创建上下文时没有scale选项
+        let rect = CGRect(x: 0, y: 0, width: self.size.width*self.scale, height: self.size.height*self.scale)
+        
+        guard let bitsPerComponent = self.cgImage?.bitsPerComponent, let colorSpace = self.cgImage?.colorSpace, let bytesPerRow = self.cgImage?.bytesPerRow, let bitmapInfo = self.cgImage?.bitmapInfo else {
+            return nil
+        }
+        //这种方式得到的位图context，图片绘制上去会自动转换坐标系，不需要再修复复位
+        guard let context = CGContext(data: nil, width: Int(rect.width), height: Int(rect.height), bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo.rawValue) else {
+            return nil
+        }
+        
+        context.translateBy(x: 50, y: 50)
+        //垂直翻转
+//        context.translateBy(x: 0, y: rect.height)
+//        context.scaleBy(x: 1, y: -1)
+        
+        //需要在变换之后draw
+        context.draw(self.cgImage!, in: rect)
+        //这里不能使用UIGraphicsGetImageFromCurrentImageContext，因为没有开启当前上下文，而是创建的新的，需要从新的里面获取
+        guard let cgImage = context.makeImage() else { return nil }
+        return UIImage(cgImage: cgImage, scale: self.scale, orientation: UIImage.Orientation.up)
+    }
+}
+
+
+extension UIImage {
+    
+    /// image的Orientation是否为up
+    public func isUpOrientation() -> Bool {
+        return self.imageOrientation == .up
+    }
+    
+    /// 将image的Orientation调整为up
+    public func transformUpOrientation() -> UIImage? {
+        if self.imageOrientation == .up {
+            return self
+        }
+        let imageSize = self.size
+        var transform = CGAffineTransform.identity
+        
+        //left 表示显示时需要向左旋转90
+        //leftMirrored这种显示模式表示，要想正确显示需要先(左右)镜像，再向左旋转90，即可得到正确图像
+        //downMirrored 表示垂直翻转
+        //
+        
+        //注意：由于image对象存在方向属性，所以image.size 和 image.cgImage.width 可能不一样，变换矩阵时需要注意
+        switch self.imageOrientation {
+        case .down:
+            transform = transform.translatedBy(x: imageSize.width, y: imageSize.height)
+            transform = transform.rotated(by: .pi)
+        case .downMirrored:
+            transform.translatedBy(x: 0, y: imageSize.height)
+            transform.scaledBy(x: 1, y: -1)
+        case .left:
+            transform = transform.translatedBy(x: imageSize.width, y: 0)
+            transform.rotated(by: .pi/2)
+        case .leftMirrored:
+            transform = transform.translatedBy(x: imageSize.width, y: imageSize.height)
+            transform = transform.rotated(by: -.pi/2)
+            transform = transform.scaledBy(x: 1, y: -1)
+        case .right:
+            transform = transform.translatedBy(x: 0, y: imageSize.height)
+            transform = transform.rotated(by: -.pi/2)
+        case .rightMirrored:
+            transform = transform.scaledBy(x: -1, y: 1)
+            transform = transform.rotated(by: -.pi/2)
+            break
+        default:
+            break
+        }
+        
+        guard let cgImage = self.cgImage, let colorSpace = cgImage.colorSpace else {
+            return nil
+        }
+        //这种创建图像上下文环境的方式，图像绘制到上下文时，会正立显示，不会发生倒立
+        guard let context = CGContext(data: nil, width: Int(imageSize.width), height: Int(imageSize.height), bitsPerComponent: cgImage.bitsPerComponent, bytesPerRow: cgImage.bytesPerRow, space: colorSpace, bitmapInfo: cgImage.bitmapInfo.rawValue) else {
+            return nil
+        }
+        context.concatenate(transform)
+        
+        switch self.imageOrientation {
+        case .left, .leftMirrored, .right, .rightMirrored:
+            context.draw(self.cgImage!, in: CGRect(x: 0, y: 0, width: imageSize.height, height: imageSize.width))
+        default:
+            context.draw(self.cgImage!, in: CGRect(x: 0, y: 0, width: imageSize.width, height: imageSize.height))
+        }
+        guard let _cgImage = context.makeImage() else { return nil }
+        
+        return UIImage(cgImage: _cgImage)
+    }
 }
